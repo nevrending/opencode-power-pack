@@ -8,7 +8,7 @@ Locally inspected host versions:
 
 - Codex CLI 0.147.0
 - Claude Code 2.1.231
-- OpenCode 2.0.14
+- OpenCode 1.18.32 and 2.0.14
 - Pi 0.83.0
 
 The repository smoke tests retain their separately pinned minimum versions. Host APIs evolve, so adapter tests and this matrix must be updated together.
