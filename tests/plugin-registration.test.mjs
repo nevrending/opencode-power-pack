@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import plugin from "../.opencode/plugins/opencode-power-pack.js";
+import plugin, { OpencodePowerPack } from "../.opencode/plugins/opencode-power-pack.js";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = path.join(REPO, "skills");
@@ -132,4 +132,70 @@ test("plugin preserves agents registered before it", async () => {
   assert.equal(agents.get("code-reviewer"), customReviewer);
   assert.ok(agents.get("code-explorer"), "other roles are still registered");
   assert.ok(agents.get("code-architect"), "other roles are still registered");
+});
+
+test("plugin exposes the OpenCode 1 config hook for skills and agents", async () => {
+  const { config } = await plugin.server();
+  const legacy = await OpencodePowerPack();
+  assert.equal(typeof config, "function");
+  assert.equal(typeof legacy.config, "function");
+
+  const target = {};
+  await config(target);
+
+  assert.deepEqual(target.skills.paths, [SKILLS_DIR]);
+  await config(target);
+  assert.deepEqual(target.skills.paths, [SKILLS_DIR], "skill path is registered once");
+
+  for (const name of ["code-explorer", "code-architect", "code-reviewer"]) {
+    const agent = target.agent[name];
+    assert.ok(agent, `${name} is registered`);
+    assert.equal(agent.mode, "subagent");
+    assert.equal(agent.permission.edit, "deny");
+    assert.equal(agent.permission.task, "deny");
+    assert.equal(agent.permission.webfetch, "deny");
+    if (name !== "code-reviewer") assert.equal(agent.permission.bash, "deny");
+    assert.deepEqual(agent.permission.read, {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+    });
+    assert.match(agent.description, /\S/);
+    assert.match(agent.prompt, /\S/);
+    assert.doesNotMatch(agent.prompt, /^---/);
+  }
+
+  assert.match(
+    target.agent["code-reviewer"].prompt,
+    /Dispatched handoff/i,
+    "registered reviewer inherits the handoff contract",
+  );
+
+  assert.deepEqual(target.agent["code-reviewer"].permission.bash, {
+    "*": "deny",
+    "git status*": "allow",
+    "git diff*": "allow",
+    "git show*": "allow",
+    "git log*": "allow",
+    "git blame*": "allow",
+    "git rev-parse*": "allow",
+    "git merge-base*": "allow",
+    "git ls-files*": "allow",
+    "git *--output*": "deny",
+    "git *--ext-diff*": "deny",
+    "git *>*": "deny",
+  });
+});
+
+test("OpenCode 1 config hook preserves user-defined agents", async () => {
+  const customReviewer = { description: "My reviewer", mode: "subagent" };
+  const target = { agent: { "code-reviewer": customReviewer } };
+  const { config } = await plugin.server();
+
+  await config(target);
+
+  assert.equal(target.agent["code-reviewer"], customReviewer);
+  assert.ok(target.agent["code-explorer"], "other roles are still registered");
+  assert.ok(target.agent["code-architect"], "other roles are still registered");
 });

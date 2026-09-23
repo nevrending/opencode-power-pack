@@ -43,6 +43,44 @@ const REVIEW_SHELL_PERMISSIONS = [
   { action: "shell", resource: "git *>*", effect: "deny" },
 ];
 
+/**
+ * OpenCode V1 permissions are a tool-keyed map with the same intent as the V2
+ * rulesets above. OpenCode 1 calls `bash` and `task` what OpenCode 2 calls
+ * `shell` and `subagent`, and it has a separate `list` tool.
+ */
+const READ_ONLY_PERMISSION = {
+  "*": "deny",
+  read: {
+    "*": "allow",
+    "*.env": "deny",
+    "*.env.*": "deny",
+    "*.env.example": "allow",
+  },
+  glob: "allow",
+  grep: "allow",
+  list: "allow",
+  edit: "deny",
+  task: "deny",
+  webfetch: "deny",
+  websearch: "deny",
+  external_directory: "deny",
+};
+
+const REVIEW_BASH_PERMISSION = {
+  "*": "deny",
+  "git status*": "allow",
+  "git diff*": "allow",
+  "git show*": "allow",
+  "git log*": "allow",
+  "git blame*": "allow",
+  "git rev-parse*": "allow",
+  "git merge-base*": "allow",
+  "git ls-files*": "allow",
+  "git *--output*": "deny",
+  "git *--ext-diff*": "deny",
+  "git *>*": "deny",
+};
+
 function readSkill(skillsDir, name) {
   const source = readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
   const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
@@ -111,6 +149,27 @@ export function loadAgentConfigs(skillsDir) {
       mode: "subagent",
       hidden: false,
       permissions,
+    }];
+  }));
+}
+
+/**
+ * Builds OpenCode V1 agent definitions for the same specialists. OpenCode 1
+ * merges these through the plugin config hook and keeps its own permission
+ * map shape.
+ */
+export function loadLegacyAgentConfigs(skillsDir) {
+  return Object.fromEntries(AGENT_NAMES.map((name) => {
+    const skill = readSkill(skillsDir, name);
+    const permission = name === "code-reviewer"
+      ? { ...READ_ONLY_PERMISSION, bash: REVIEW_BASH_PERMISSION }
+      : { ...READ_ONLY_PERMISSION, bash: "deny" };
+
+    return [name, {
+      description: skill.description,
+      prompt: skill.body.trim(),
+      mode: "subagent",
+      permission,
     }];
   }));
 }
