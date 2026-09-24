@@ -9,7 +9,6 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -89,7 +88,6 @@ test("plugin loads as an ES module without runtime warnings", () => {
     cpSync(join(REPO, ".opencode", "plugins"), join(packedRoot, ".opencode", "plugins"), { recursive: true });
     cpSync(join(REPO, ".opencode", "lib"), join(packedRoot, ".opencode", "lib"), { recursive: true });
     cpSync(join(REPO, "skills"), join(packedRoot, "skills"), { recursive: true });
-    symlinkSync(join(REPO, "node_modules"), join(packedRoot, "node_modules"), "dir");
     writeFileSync(join(packedRoot, "package.json"), '{"type":"module"}\n', "utf8");
 
     const result = spawnSync(

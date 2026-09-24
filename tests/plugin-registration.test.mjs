@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import plugin, { OpencodePowerPack } from "../.opencode/plugins/opencode-power-pack.js";
+import plugin from "../.opencode/plugins/opencode-power-pack.js";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = path.join(REPO, "skills");
@@ -136,10 +136,6 @@ test("plugin preserves agents registered before it", async () => {
 
 test("plugin exposes the OpenCode 1 config hook for skills and agents", async () => {
   const { config } = await plugin.server();
-  const legacy = await OpencodePowerPack();
-  assert.equal(typeof config, "function");
-  assert.equal(typeof legacy.config, "function");
-
   const target = {};
   await config(target);
 
@@ -198,4 +194,45 @@ test("OpenCode 1 config hook preserves user-defined agents", async () => {
   assert.equal(target.agent["code-reviewer"], customReviewer);
   assert.ok(target.agent["code-explorer"], "other roles are still registered");
   assert.ok(target.agent["code-architect"], "other roles are still registered");
+});
+
+test("both hosts derive the same read-only rules from one permission source", async () => {
+  const { agents } = await register();
+  const target = {};
+  await (await plugin.server()).config(target);
+
+  assert.deepEqual(agents.get("code-explorer").permissions, [
+    { action: "*", resource: "*", effect: "deny" },
+    { action: "read", resource: "*", effect: "allow" },
+    { action: "read", resource: "*.env", effect: "deny" },
+    { action: "read", resource: "*.env.*", effect: "deny" },
+    { action: "read", resource: "*.env.example", effect: "allow" },
+    { action: "glob", resource: "*", effect: "allow" },
+    { action: "grep", resource: "*", effect: "allow" },
+    { action: "edit", resource: "*", effect: "deny" },
+    { action: "subagent", resource: "*", effect: "deny" },
+    { action: "webfetch", resource: "*", effect: "deny" },
+    { action: "websearch", resource: "*", effect: "deny" },
+    { action: "external_directory", resource: "*", effect: "deny" },
+    { action: "shell", resource: "*", effect: "deny" },
+  ]);
+  assert.equal(target.agent["code-explorer"].permission.list, "allow", "OpenCode 1 keeps its list tool");
+});
+
+test("host edits to one registered agent do not leak into others or later registrations", async () => {
+  // OpenCode 2 appends global rules to each agent's permissions in place.
+  const first = await register();
+  first.agents.get("code-explorer").permissions.push({ action: "edit", resource: "*", effect: "allow" });
+  assert.equal(first.agents.get("code-architect").permissions.at(-1).action, "shell");
+  const second = await register();
+  assert.equal(second.agents.get("code-explorer").permissions.at(-1).action, "shell");
+
+  const { config } = await plugin.server();
+  const legacy = {};
+  await config(legacy);
+  legacy.agent["code-explorer"].permission.read["*.env"] = "allow";
+  assert.equal(legacy.agent["code-architect"].permission.read["*.env"], "deny");
+  const fresh = {};
+  await config(fresh);
+  assert.equal(fresh.agent["code-explorer"].permission.read["*.env"], "deny");
 });

@@ -558,12 +558,12 @@ export function buildEvalConfig(pluginDirectory) {
   };
 }
 
-export function parseModelReference(model) {
+function parseModelReference(model) {
   const separator = model.indexOf("/");
   return { providerID: model.slice(0, separator), id: model.slice(separator + 1) };
 }
 
-export async function availablePort() {
+async function availablePort() {
   const server = createServer();
   await new Promise((resolve, reject) => server.listen(0, "127.0.0.1", resolve).once("error", reject));
   const address = server.address();
@@ -576,7 +576,7 @@ export async function availablePort() {
  * package entrypoint in the repository, so its skills and dependencies resolve
  * exactly as they do for an installed package.
  */
-export function writePluginShim(runtime, repo) {
+function writePluginShim(runtime, repo) {
   const directory = path.join(runtime.root, "plugin");
   mkdirSync(directory, { recursive: true });
   const entrypoint = pathToFileURL(
