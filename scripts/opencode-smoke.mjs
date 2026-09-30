@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -17,7 +18,7 @@ const expectedSkills = readdirSync(path.join(repo, "skills"), { withFileTypes: t
   .map((entry) => entry.name)
   .sort();
 const expectedAgents = ["code-architect", "code-explorer", "code-reviewer"];
-const serverPassword = "opencode-smoke-password";
+const serverPassword = randomBytes(32).toString("base64url");
 const authorization = `Basic ${Buffer.from(`opencode:${serverPassword}`).toString("base64")}`;
 const verifierSource = [
   'import { writeFileSync } from "node:fs";',
